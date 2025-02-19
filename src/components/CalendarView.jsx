@@ -3,6 +3,8 @@ import CalendarHeader from './CalendarHeader';
 import CalendarDay from './CalendarDay';
 import { getDaysInMonth } from '../utils/calendar';
 import { format } from 'date-fns';
+import { ChevronLeft, ChevronRight, CalendarIcon } from 'lucide-react';
+import TimeSelectionSidebar from './TimeSelectionSidebar';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -51,112 +53,84 @@ const CalendarView = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 relative flex">
-      <div className="flex-1 max-w-[1800px] mx-auto pr-96"> {/* Added right padding for panel */}
-        <CalendarHeader 
-          currentMonth={currentMonth}
-          onMonthChange={handleMonthChange}
-          onToday={() => setCurrentMonth(new Date())}
-        />
-
-        <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-          {/* Weekday headers */}
-          <div className="grid grid-cols-7 bg-emerald-50">
-            {WEEKDAYS.map(day => (
-              <div key={day} className="py-4 text-center border-r last:border-r-0">
-                <span className="text-sm font-semibold text-emerald-800">
-                  {day}
-                </span>
-              </div>
-            ))}
+    <div className="min-h-screen bg-white p-4">
+      <div className="max-w-[1800px] mx-auto">
+        {/* Simplified header */}
+        <div className="flex items-center gap-4 mb-6">
+          <h1 className="text-2xl font-normal">
+            {format(currentMonth, 'MMMM yyyy')}
+          </h1>
+          <div className="flex">
+            <button 
+              onClick={() => handleMonthChange(-1)}
+              className="p-2 hover:bg-gray-100 rounded-l border"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => handleMonthChange(1)}
+              className="p-2 hover:bg-gray-100 rounded-r border-t border-r border-b"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
+          <button 
+            className="flex items-center gap-2 px-3 py-1 border rounded hover:bg-gray-100"
+            onClick={() => setCurrentMonth(new Date())}
+          >
+            <CalendarIcon className="w-4 h-4" />
+            Today
+          </button>
+        </div>
 
-          {/* Calendar grid */}
-          {getDaysInMonth(currentMonth).map((week, weekIndex) => (
-            <div key={weekIndex} className="grid grid-cols-7">
-              {week.map(({ date, isCurrentMonth }, dayIndex) => (
-                <CalendarDay
-                  key={dayIndex}
-                  date={date}
-                  isCurrentMonth={isCurrentMonth}
-                  isSelected={selectedDate?.toDateString() === date.toDateString()}
-                  onSelect={(date) => {
-                    setSelectedDate(date);
-                    setIsTimesPanelOpen(true);
-                  }}
-                  events={[]}
-                />
-              ))}
+        {/* Days of week */}
+        <div className="grid grid-cols-7 mb-1">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="py-2">
+              <span className="text-sm text-gray-600">{day}</span>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Time Selection Panel */}
-      <div className={`
-        fixed top-0 right-0 h-full w-96 bg-white shadow-2xl
-        transform transition-transform duration-300 border-l border-gray-200
-        ${isTimesPanelOpen ? 'translate-x-0' : 'translate-x-full'}
-      `}>
-        <div className="p-6 h-full flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {selectedDate && format(selectedDate, 'EEEE, MMMM d')}
-            </h2>
-            <button 
-              onClick={() => setIsTimesPanelOpen(false)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Time slots */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col divide-y divide-gray-200">
-              {Array.from({ length: 24 }, (_, i) => {
-                const time = formatTime(i);
-                const isSelected = selectedDate && getSelectedTimesForDate(selectedDate).has(time);
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => selectedDate && toggleTimeSlot(selectedDate, time)}
-                    className={`
-                      flex items-center justify-between py-3 px-4
-                      ${isSelected 
-                        ? 'bg-gray-100 font-medium' 
-                        : 'hover:bg-gray-50'
-                      }
-                      transition-colors
-                    `}
-                  >
-                    <span>{time}</span>
-                    {isSelected && (
-                      <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Selected times summary - Back in the panel */}
-          {selectedDate && getSelectedTimesForDate(selectedDate).size > 0 && (
-            <div className="mt-4 pt-4 border-t">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Times:</h3>
-              <div className="flex flex-wrap gap-2">
-                {[...getSelectedTimesForDate(selectedDate)].sort().map(time => (
-                  <span key={time} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
-                    {time}
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 border-t border-l">
+          {getDaysInMonth(currentMonth).map((week, weekIndex) => (
+            <React.Fragment key={weekIndex}>
+              {week.map(({ date, isCurrentMonth }, dayIndex) => (
+                <button
+                  key={dayIndex}
+                  onClick={() => {
+                    setSelectedDate(date);
+                    setIsTimesPanelOpen(true);
+                  }}
+                  className={`
+                    p-2 min-h-[100px] border-r border-b text-left
+                    ${!isCurrentMonth ? 'bg-gray-50' : 'bg-white'}
+                    hover:bg-gray-50
+                  `}
+                >
+                  <span className={`
+                    text-sm
+                    ${!isCurrentMonth ? 'text-gray-400' : 'text-gray-900'}
+                    ${selectedDate?.toDateString() === date.toDateString() ? 'text-blue-600' : ''}
+                  `}>
+                    {format(date, 'd')}
                   </span>
-                ))}
-              </div>
-            </div>
-          )}
+                </button>
+              ))}
+            </React.Fragment>
+          ))}
         </div>
+
+        {/* Time Selection Sidebar */}
+        {selectedDate && isTimesPanelOpen && (
+          <TimeSelectionSidebar
+            selectedDate={selectedDate}
+            onClose={() => setIsTimesPanelOpen(false)}
+            selectedTimes={getSelectedTimesForDate(selectedDate)}
+            onToggleTime={(time) => toggleTimeSlot(selectedDate, time)}
+          />
+        )}
       </div>
     </div>
   );
