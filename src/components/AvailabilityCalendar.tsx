@@ -21,6 +21,27 @@ const SellerAvailabilityCalendar = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartTime, setDragStartTime] = useState<string | null>(null);
   const [dragEndTime, setDragEndTime] = useState<string | null>(null);
+  
+  // Regular availability pattern states
+  const [showRegularForm, setShowRegularForm] = useState(false);
+  const [regularDay, setRegularDay] = useState<number | null>(null);
+  const [regularStartTime, setRegularStartTime] = useState<string>('');
+  const [regularEndTime, setRegularEndTime] = useState<string>('');
+  const [regularWeeks, setRegularWeeks] = useState(4); // How many weeks to add this pattern
+  
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
+  
+  // Show temporary "Saved" indicator whenever availabilities change
+  useEffect(() => {
+    if (availabilities.length > 0) {
+      setShowSavedIndicator(true);
+      const timer = setTimeout(() => {
+        setShowSavedIndicator(false);
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [availabilities]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -48,7 +69,6 @@ const SellerAvailabilityCalendar = () => {
       for (let i = 0; i < currentDay - 1; i++) {
         if (i < daysArray.length) {
           // Mark past days as disabled by setting them to -1
-          // (We'll check for negative values to disable them in the UI)
           daysArray[i] = -daysArray[i];
         }
       }
@@ -114,6 +134,63 @@ const SellerAvailabilityCalendar = () => {
       console.log("Selected range:", selectedRange); // Debugging
       setSelectedTimes(selectedRange);
     }
+  };
+
+  // Find the index of a time slot in the timeSlots array
+  const getTimeIndex = (time: string) => timeSlots.indexOf(time);
+
+  // Add regular availability for multiple weeks
+  const addRegularAvailability = () => {
+    if (!regularDay || !regularStartTime || !regularEndTime) return;
+    
+    const startIndex = getTimeIndex(regularStartTime);
+    const endIndex = getTimeIndex(regularEndTime);
+    
+    if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
+      console.error("Invalid time range");
+      return;
+    }
+    
+    // Get all times in the range
+    const selectedTimeRange = timeSlots.slice(startIndex, endIndex + 1);
+    
+    // Generate the dates for the selected day of week for the next N weeks
+    const newAvailabilities: TimeSlot[] = [];
+    const today = new Date();
+    
+    for (let week = 0; week < regularWeeks; week++) {
+      // Find the date of the next occurrence of the selected day
+      const date = new Date(today);
+      date.setDate(today.getDate() + ((regularDay + 7 - today.getDay()) % 7) + (week * 7));
+      
+      const formattedDate = date.toISOString().split('T')[0];
+      
+      // Add each time slot for this date
+      selectedTimeRange.forEach(time => {
+        // Check if this slot already exists
+        const alreadyExists = availabilities.some(
+          slot => slot.date === formattedDate && slot.time === time
+        );
+        
+        if (!alreadyExists) {
+          newAvailabilities.push({
+            date: formattedDate,
+            time
+          });
+        }
+      });
+    }
+    
+    // Add all new availabilities
+    if (newAvailabilities.length > 0) {
+      setAvailabilities(prev => [...prev, ...newAvailabilities]);
+    }
+    
+    // Reset form
+    setShowRegularForm(false);
+    setRegularDay(null);
+    setRegularStartTime('');
+    setRegularEndTime('');
   };
 
   // Simplified drag end handler with fixed dependency array
@@ -185,6 +262,16 @@ const SellerAvailabilityCalendar = () => {
 
   return (
     <div className="p-4 max-w-4xl mx-auto text-black">
+      <style jsx>{`
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+        .fade-out {
+          animation: fadeOut 1.5s ease-out 0.5s forwards;
+        }
+      `}</style>
+      
       <h2 className="text-xl font-bold mb-6">Seller Availability</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -362,9 +449,117 @@ const SellerAvailabilityCalendar = () => {
             </div>
           </div>
 
-          <div className="mt-4 text-center text-sm text-gray-600">
-            Times are automatically saved when selected or dragged
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => setShowRegularForm(true)}
+              className="text-green-600 font-medium text-sm hover:text-green-800 flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Regular Availability
+            </button>
           </div>
+          
+          {/* Regular availability popup */}
+          {showRegularForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg w-[90%] max-w-lg">
+                <h3 className="text-lg font-semibold mb-4">Add Regular Availability</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Set up a recurring availability pattern for specific days of the week.
+                </p>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Day of the Week</label>
+                  <div className="grid grid-cols-7 gap-1">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                      <button
+                        key={day}
+                        onClick={() => setRegularDay(index)}
+                        className={`
+                          p-2 text-center rounded text-sm
+                          ${regularDay === index ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200'}
+                        `}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Start Time</label>
+                    <select 
+                      value={regularStartTime} 
+                      onChange={(e) => setRegularStartTime(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select time</option>
+                      {timeSlots.map(time => (
+                        <option key={time} value={time}>{time}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">End Time</label>
+                    <select 
+                      value={regularEndTime} 
+                      onChange={(e) => setRegularEndTime(e.target.value)}
+                      className="w-full p-2 border rounded"
+                      disabled={!regularStartTime}
+                    >
+                      <option value="">Select time</option>
+                      {timeSlots
+                        .filter(time => {
+                          if (!regularStartTime) return true;
+                          return getTimeIndex(time) >= getTimeIndex(regularStartTime);
+                        })
+                        .map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">
+                    Number of weeks to schedule: {regularWeeks}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="12"
+                    value={regularWeeks}
+                    onChange={(e) => setRegularWeeks(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>1 week</span>
+                    <span>12 weeks</span>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between mt-6">
+                  <button
+                    onClick={() => setShowRegularForm(false)}
+                    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={addRegularAvailability}
+                    disabled={!regularDay || !regularStartTime || !regularEndTime}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                  >
+                    Add Regular Availability
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Added availability list */}
@@ -408,13 +603,12 @@ const SellerAvailabilityCalendar = () => {
             </div>
           )}
           
-          <div className="mt-4">
-            <div className="px-4 py-2 bg-green-100 text-green-800 rounded w-full text-center">
-              All changes are automatically saved
-            </div>
-            <p className="text-sm text-gray-500 mt-2">
-              Your availability is being saved as you select times. This will be shown to potential buyers.
-            </p>
+          <div className="mt-4 h-6">
+            {showSavedIndicator && (
+              <div className="text-sm text-green-600 italic text-center fade-out">
+                ✓ Changes saved
+              </div>
+            )}
           </div>
         </div>
       </div>
