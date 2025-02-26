@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 interface TimeSlot {
   date: string;
@@ -17,7 +17,6 @@ const SellerAvailabilityCalendar = () => {
   const [availabilities, setAvailabilities] = useState<TimeSlot[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
-  // Initialize current month to current date
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartTime, setDragStartTime] = useState<string | null>(null);
@@ -63,10 +62,11 @@ const SellerAvailabilityCalendar = () => {
     return date.toISOString().split('T')[0];
   };
 
-  // Fixed handleTimeToggle function
   const handleTimeToggle = (time: string) => {
     // If we're in the middle of a drag, don't do anything
     if (isDragging) return;
+    
+    console.log("Toggle time:", time);
     
     // Create a new time slot immediately when clicked
     const timeSlot = {
@@ -78,6 +78,8 @@ const SellerAvailabilityCalendar = () => {
     const existingIndex = availabilities.findIndex(
       slot => slot.date === selectedDate && slot.time === time
     );
+    
+    console.log("Existing index:", existingIndex);
     
     if (existingIndex !== -1) {
       // Remove if it already exists
@@ -94,35 +96,6 @@ const SellerAvailabilityCalendar = () => {
     setSelectedTimes([]);
   };
 
-  // Drag and drop functionality
-  const handleDragStart = (time: string, e: React.MouseEvent) => {
-    if (!selectedDate) return;
-    
-    // Only initiate drag if it's not a simple click (prevent interference with toggle)
-    // We'll set a small timeout to determine if this is the start of a drag
-    const dragTimeout = setTimeout(() => {
-      setIsDragging(true);
-      setDragStartTime(time);
-      setDragEndTime(time);
-      
-      // Initialize selection with just the start time, or keep existing selection and add to it
-      setSelectedTimes(prev => {
-        if (!prev.includes(time)) {
-          return [...prev, time];
-        }
-        return prev;
-      });
-    }, 150); // Small delay to distinguish between click and drag
-    
-    // Clean up timeout on mouse up
-    const clearDragTimeout = () => {
-      clearTimeout(dragTimeout);
-      document.removeEventListener('mouseup', clearDragTimeout);
-    };
-    
-    document.addEventListener('mouseup', clearDragTimeout);
-  };
-
   const handleDragEnter = (time: string) => {
     if (!isDragging || !selectedDate) return;
     
@@ -136,63 +109,75 @@ const SellerAvailabilityCalendar = () => {
       const start = Math.min(startIndex, endIndex);
       const end = Math.max(startIndex, endIndex);
       
+      // Get all times in the range
       const selectedRange = timeSlots.slice(start, end + 1);
+      console.log("Selected range:", selectedRange); // Debugging
       setSelectedTimes(selectedRange);
     }
   };
 
-  const handleDragEnd = () => {
-    if (isDragging) {
-      // Add the currently selected times to availabilities
-      const newSlots = selectedTimes
-        .filter(time => {
-          // Filter out times that already exist in availabilities
-          return !availabilities.some(slot => 
-            slot.date === selectedDate && slot.time === time
-          );
-        })
-        .map(time => ({
-          date: selectedDate,
-          time
-        }));
+  // Simplified drag end handler with fixed dependency array
+  const handleDragEnd = useCallback(() => {
+    if (isDragging && selectedTimes.length > 0) {
+      console.log("Drag ended with selectedTimes:", selectedTimes);
       
-      if (newSlots.length > 0) {
-        setAvailabilities(prev => [...prev, ...newSlots]);
+      // Process each selected time one by one (more reliable)
+      const newTimes: TimeSlot[] = [];
+      
+      selectedTimes.forEach(time => {
+        // Check if we already have this time slot
+        const alreadyExists = availabilities.some(
+          slot => slot.date === selectedDate && slot.time === time
+        );
+        
+        // Only add if it doesn't already exist
+        if (!alreadyExists) {
+          console.log("Adding time from drag:", time);
+          newTimes.push({ date: selectedDate, time });
+        }
+      });
+      
+      if (newTimes.length > 0) {
+        setAvailabilities(prev => [...prev, ...newTimes]);
       }
       
-      // Reset drag state
+      // Reset all states
       setIsDragging(false);
       setDragStartTime(null);
       setDragEndTime(null);
-      
-      // Clear selected times after adding them
       setSelectedTimes([]);
     }
-  };
+  }, [isDragging, selectedTimes, availabilities, selectedDate]);
 
-  // Add event listeners for mouse up to end dragging
+  // Track mouse movement on the document level
   useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // If we have a drag start but aren't dragging yet, 
+      // now we are dragging because mouse moved
+      if (dragStartTime && !isDragging) {
+        setIsDragging(true);
+        setSelectedTimes([dragStartTime]);
+      }
+    };
+    
     const handleMouseUp = () => {
       if (isDragging) {
         handleDragEnd();
+      } else if (dragStartTime) {
+        // If we had a start time but never started dragging,
+        // this was just a click - clean up
+        setDragStartTime(null);
       }
     };
-
+    
+    document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    
     return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
-
-  const addAvailability = () => {
-    const newSlots = selectedTimes.map(time => ({
-      date: selectedDate,
-      time
-    }));
-    setAvailabilities(prev => [...prev, ...newSlots]);
-    setSelectedTimes([]);
-    // Keep the selected date for convenience when adding multiple slots
-  };
+  }, [dragStartTime, isDragging, handleDragEnd]);
 
   const removeAvailability = (index: number) => {
     setAvailabilities(prev => prev.filter((_, i) => i !== index));
@@ -236,7 +221,7 @@ const SellerAvailabilityCalendar = () => {
                 className={`
                   p-2 text-center rounded
                   ${!day ? 'bg-transparent' : day < 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-100'}
-                  ${selectedDate === (day && day > 0 ? formatDate(day) : '') ? 'bg-blue-500 text-white hover:bg-blue-600' : ''}
+                  ${selectedDate === (day && day > 0 ? formatDate(day) : '') ? 'bg-green-500 text-white hover:bg-green-600' : ''}
                 `}
               >
                 {day ? Math.abs(day) : ''}
@@ -249,7 +234,7 @@ const SellerAvailabilityCalendar = () => {
           <div className="grid grid-cols-3 gap-4 mb-4">
             {/* Morning column */}
             <div>
-              <h5 className="text-center mb-2 font-medium text-sm bg-blue-50 p-1 rounded">Morning</h5>
+              <h5 className="text-center mb-2 font-medium text-sm bg-green-50 p-1 rounded">Morning</h5>
               <div className="space-y-1">
                 {timeSlots.filter(time => {
                   const hour = parseInt(time.split(':')[0]);
@@ -258,14 +243,30 @@ const SellerAvailabilityCalendar = () => {
                   <button
                     key={time}
                     onClick={() => handleTimeToggle(time)}
-                    onMouseDown={(e) => handleDragStart(time, e)}
-                    onMouseEnter={() => handleDragEnter(time)}
+                    onMouseDown={() => {
+                      // Only start drag on actual mousedown + move
+                      // This allows click to work separately
+                      if (!selectedDate) return;
+                      setDragStartTime(time);
+                    }}
+                    onMouseEnter={() => {
+                      // Only register as dragging if we have a start time
+                      if (dragStartTime && !isDragging) {
+                        setIsDragging(true);
+                        setSelectedTimes([dragStartTime]);
+                      }
+                      
+                      if (isDragging) {
+                        handleDragEnter(time);
+                      }
+                    }}
                     disabled={!selectedDate}
                     className={`
                       w-full p-2 rounded text-sm select-none
-                      ${selectedTimes.includes(time) ? 'bg-blue-500 text-white' : 'bg-gray-100'}
-                      ${!selectedDate ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}
+                      ${selectedTimes.includes(time) ? 'bg-green-500 text-white' : 'bg-gray-100'}
+                      ${!selectedDate ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-100'}
                       ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}
+                      ${availabilities.some(slot => slot.date === selectedDate && slot.time === time) ? 'bg-green-500 text-white' : ''}
                     `}
                   >
                     {time}
@@ -276,7 +277,7 @@ const SellerAvailabilityCalendar = () => {
 
             {/* Afternoon column */}
             <div>
-              <h5 className="text-center mb-2 font-medium text-sm bg-blue-50 p-1 rounded">Afternoon</h5>
+              <h5 className="text-center mb-2 font-medium text-sm bg-green-50 p-1 rounded">Afternoon</h5>
               <div className="space-y-1">
                 {timeSlots.filter(time => {
                   const hour = parseInt(time.split(':')[0]);
@@ -285,14 +286,30 @@ const SellerAvailabilityCalendar = () => {
                   <button
                     key={time}
                     onClick={() => handleTimeToggle(time)}
-                    onMouseDown={() => handleDragStart(time)}
-                    onMouseEnter={() => handleDragEnter(time)}
+                    onMouseDown={() => {
+                      // Only start drag on actual mousedown + move
+                      // This allows click to work separately
+                      if (!selectedDate) return;
+                      setDragStartTime(time);
+                    }}
+                    onMouseEnter={() => {
+                      // Only register as dragging if we have a start time
+                      if (dragStartTime && !isDragging) {
+                        setIsDragging(true);
+                        setSelectedTimes([dragStartTime]);
+                      }
+                      
+                      if (isDragging) {
+                        handleDragEnter(time);
+                      }
+                    }}
                     disabled={!selectedDate}
                     className={`
                       w-full p-2 rounded text-sm select-none
-                      ${selectedTimes.includes(time) ? 'bg-blue-500 text-white' : 'bg-gray-100'}
-                      ${!selectedDate ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}
+                      ${selectedTimes.includes(time) ? 'bg-green-500 text-white' : 'bg-gray-100'}
+                      ${!selectedDate ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-100'}
                       ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}
+                      ${availabilities.some(slot => slot.date === selectedDate && slot.time === time) ? 'bg-green-500 text-white' : ''}
                     `}
                   >
                     {time}
@@ -303,7 +320,7 @@ const SellerAvailabilityCalendar = () => {
 
             {/* Evening column */}
             <div>
-              <h5 className="text-center mb-2 font-medium text-sm bg-blue-50 p-1 rounded">Evening</h5>
+              <h5 className="text-center mb-2 font-medium text-sm bg-green-50 p-1 rounded">Evening</h5>
               <div className="space-y-1">
                 {timeSlots.filter(time => {
                   const hour = parseInt(time.split(':')[0]);
@@ -312,14 +329,30 @@ const SellerAvailabilityCalendar = () => {
                   <button
                     key={time}
                     onClick={() => handleTimeToggle(time)}
-                    onMouseDown={() => handleDragStart(time)}
-                    onMouseEnter={() => handleDragEnter(time)}
+                    onMouseDown={() => {
+                      // Only start drag on actual mousedown + move
+                      // This allows click to work separately
+                      if (!selectedDate) return;
+                      setDragStartTime(time);
+                    }}
+                    onMouseEnter={() => {
+                      // Only register as dragging if we have a start time
+                      if (dragStartTime && !isDragging) {
+                        setIsDragging(true);
+                        setSelectedTimes([dragStartTime]);
+                      }
+                      
+                      if (isDragging) {
+                        handleDragEnter(time);
+                      }
+                    }}
                     disabled={!selectedDate}
                     className={`
                       w-full p-2 rounded text-sm select-none
-                      ${selectedTimes.includes(time) ? 'bg-blue-500 text-white' : 'bg-gray-100'}
-                      ${!selectedDate ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-100'}
+                      ${selectedTimes.includes(time) ? 'bg-green-500 text-white' : 'bg-gray-100'}
+                      ${!selectedDate ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-100'}
                       ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}
+                      ${availabilities.some(slot => slot.date === selectedDate && slot.time === time) ? 'bg-green-500 text-white' : ''}
                     `}
                   >
                     {time}
@@ -358,11 +391,11 @@ const SellerAvailabilityCalendar = () => {
                     {times.sort().map((time, timeIndex) => {
                       const slotIndex = availabilities.findIndex(slot => slot.date === date && slot.time === time);
                       return (
-                        <div key={timeIndex} className="inline-flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        <div key={timeIndex} className="inline-flex items-center bg-green-100 text-green-800 px-2 py-1 rounded">
                           {time}
                           <button 
                             onClick={() => removeAvailability(slotIndex)}
-                            className="ml-1 text-blue-500 hover:text-blue-700"
+                            className="ml-1 text-green-500 hover:text-green-700"
                           >
                             ✕
                           </button>
