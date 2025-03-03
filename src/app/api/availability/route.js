@@ -1,14 +1,6 @@
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
 
-// Configure database connection
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
-});
+const API_PORT = 5002;
 
 // GET all availability slots with optional filtering
 export async function GET(request) {
@@ -17,73 +9,94 @@ export async function GET(request) {
     const propertyId = searchParams.get('propertyId');
     const sellerId = searchParams.get('sellerId');
     
-    let query = 'SELECT * FROM availability WHERE 1=1';
-    const values = [];
-    
-    if (propertyId) {
-      values.push(propertyId);
-      query += ` AND property_id = $${values.length}`;
+    if (!propertyId) {
+      return NextResponse.json({ error: 'Property ID is required' }, { status: 400 });
     }
-    
-    if (sellerId) {
-      values.push(sellerId);
-      query += ` AND seller_id = $${values.length}`;
+
+    // Get property-specific availability
+    const response = await fetch(
+      `http://localhost:${API_PORT}/api/availability/property/${propertyId}?sellerId=${sellerId || ''}`
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-    
-    query += ' ORDER BY start_time ASC';
-    
-    const result = await pool.query(query, values);
-    return NextResponse.json(result.rows);
+
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching availability:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 // POST to create new availability slots
 export async function POST(request) {
-  const client = await pool.connect();
-  
   try {
-    await client.query('BEGIN');
+    console.log('POST request received at Next.js API route');
+    const data = await request.json();
+    console.log('Data received in Next.js:', data);
     
-    const { sellerId, propertyId, availabilitySlots } = await request.json();
+    // Log the URL we're about to call
+    const pythonUrl = `http://localhost:${API_PORT}/api/availability`;
+    console.log('Calling Python backend at:', pythonUrl);
     
-    // Validate input
-    if (!sellerId || !propertyId || !availabilitySlots || !Array.isArray(availabilitySlots)) {
-      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    const response = await fetch(pythonUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    });
+
+    console.log('Response from Python backend:', {
+      status: response.status,
+      statusText: response.statusText
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Python backend error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
-    
-    const insertedSlots = [];
-    
-    // Insert each availability slot
-    for (const slot of availabilitySlots) {
-      const { startTime, endTime } = slot;
-      
-      // Validate time range
-      if (!startTime || !endTime) {
-        await client.query('ROLLBACK');
-        return NextResponse.json({ error: 'Missing start or end time' }, { status: 400 });
-      }
-      
-      const result = await client.query(
-        `INSERT INTO availability 
-         (seller_id, property_id, start_time, end_time)
-         VALUES ($1, $2, $3, $4)
-         RETURNING *`,
-        [sellerId, propertyId, startTime, endTime]
-      );
-      
-      insertedSlots.push(result.rows[0]);
-    }
-    
-    await client.query('COMMIT');
-    return NextResponse.json(insertedSlots, { status: 201 });
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error creating availability:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  } finally {
-    client.release();
+    console.error('Detailed error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to save availability' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE availability
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const propertyId = searchParams.get('propertyId');
+    const sellerId = searchParams.get('sellerId');
+
+    if (!propertyId) {
+      return NextResponse.json({ error: 'Property ID is required' }, { status: 400 });
+    }
+
+    const response = await fetch(
+      `http://localhost:${API_PORT}/api/availability/property/${propertyId}?sellerId=${sellerId || ''}`,
+      { method: 'DELETE' }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('Error deleting availability:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

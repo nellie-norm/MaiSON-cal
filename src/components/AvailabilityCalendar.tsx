@@ -116,7 +116,7 @@ const SellerAvailabilityCalendar = ({ sellerId, propertyId }: SellerAvailability
         }));
         
         // Delete all existing slots for this property/seller
-        await fetch(`/api/availability/property/${propertyId}?sellerId=${sellerId}`, {
+        await fetch(`/api/availability?propertyId=${propertyId}&sellerId=${sellerId}`, {
           method: 'DELETE'
         });
         
@@ -258,6 +258,8 @@ const SellerAvailabilityCalendar = ({ sellerId, propertyId }: SellerAvailability
   };
 
   const handleTimeToggle = (time: string) => {
+    console.log('Trying to toggle time:', time);
+    console.log('Selected date:', selectedDate);
     // If we're in the middle of a drag, don't do anything
     if (isDragging) return;
     
@@ -282,6 +284,7 @@ const SellerAvailabilityCalendar = ({ sellerId, propertyId }: SellerAvailability
   };
 
   const handleDateSelect = (day: number) => {
+    console.log('Clicked date:', formatDate(day));
     setSelectedDate(formatDate(day));
     // Clear selected times when changing date
     setSelectedTimes([]);

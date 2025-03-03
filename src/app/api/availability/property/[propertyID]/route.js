@@ -10,22 +10,19 @@ const pool = new Pool({
 });
 
 export async function GET(request, { params }) {
-  try {
-    // Await params before destructuring
-    const { propertyID } = await params;
+    const propertyID = params.propertyID;
     
-    const result = await pool.query(
-      `SELECT * FROM availability 
-       WHERE property_id = $1
-       ORDER BY start_time ASC`,
-      [propertyID]
-    );
-    
-    return NextResponse.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching property availability:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
+    try {
+        const response = await fetch(`http://localhost:5000/api/availability/property/${propertyID}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Error fetching property availability:', error);
+        return NextResponse.json({ error: 'Failed to fetch availability' }, { status: 500 });
+    }
 }
 
 // DELETE all availability for a property
