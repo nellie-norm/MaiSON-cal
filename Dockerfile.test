@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Create a simple Flask app
+RUN echo 'from flask import Flask\napp = Flask(__name__)\n\n@app.route("/")\ndef hello():\n    return "Hello from Azure!"\n\n@app.route("/health")\ndef health():\n    return {"status": "healthy"}\n\nif __name__ == "__main__":\n    app.run(host="0.0.0.0", port=8000)' > app.py
+
+# Install Flask and Gunicorn
+RUN pip install flask gunicorn
+
+# Expose port 8000
+EXPOSE 8000
+
+# Run the app
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"] 
