@@ -53,7 +53,7 @@ const SellerAvailabilityCalendar = ({ sellerId, propertyId }: SellerAvailability
       try {
         setIsLoading(true);
         // Make sure this URL matches your actual API route structure
-        const response = await fetch(`/api/availability?propertyId=${propertyId}&sellerId=${sellerId}`);
+        const response = await fetch(`/api/availability/property/${propertyId}?sellerId=${sellerId}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -116,7 +116,7 @@ const SellerAvailabilityCalendar = ({ sellerId, propertyId }: SellerAvailability
         }));
         
         // Delete all existing slots for this property/seller
-        await fetch(`/api/availability?propertyId=${propertyId}&sellerId=${sellerId}`, {
+        await fetch(`/api/availability/property/${propertyId}?sellerId=${sellerId}`, {
           method: 'DELETE'
         });
         
@@ -433,9 +433,6 @@ const SellerAvailabilityCalendar = ({ sellerId, propertyId }: SellerAvailability
   if (isLoading) {
     return <div className="p-4 text-center">Loading availability data...</div>;
   }
-
-  // The rest of your component rendering code remains the same
-  // ...continue with your existing JSX for the calendar and UI
   
   return (
     <div className="p-4 max-w-4xl mx-auto text-black">
