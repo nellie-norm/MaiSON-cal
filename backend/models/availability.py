@@ -85,14 +85,23 @@ class AvailabilityManager:
             return []
 
     def create_availability(self, seller_id, property_id, availability_slots):
-        # More robust implementation
         try:
             successes = 0
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     for slot in availability_slots:
-                        start_time = datetime.fromisoformat(slot['start_time'])
-                        end_time = datetime.fromisoformat(slot['end_time'])
+                        # Handle various date formats for better compatibility
+                        def parse_time(time_str):
+                            # Handle 'Z' timezone marker
+                            if time_str.endswith('Z'):
+                                time_str = time_str[:-1] + '+00:00'
+                            # Handle missing timezone (assume UTC)
+                            elif 'T' in time_str and not ('+' in time_str or '-' in time_str):
+                                time_str = time_str + '+00:00'
+                            return datetime.fromisoformat(time_str)
+                        
+                        start_time = parse_time(slot['start_time'])
+                        end_time = parse_time(slot['end_time'])
                         
                         # Insert each availability slot
                         cur.execute("""
