@@ -18,8 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire project
 COPY . .
 
-COPY .env.local .env.local
-
 # Debug: List directory contents
 RUN ls -la
 RUN ls -la backend/models
