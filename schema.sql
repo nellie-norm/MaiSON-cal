@@ -1,7 +1,9 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS availability (
-    id SERIAL PRIMARY KEY,
-    property_id INTEGER NOT NULL,
-    seller_id INTEGER NOT NULL,
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    property_id UUID NOT NULL,
+    seller_id UUID NOT NULL,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

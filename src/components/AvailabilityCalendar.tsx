@@ -9,7 +9,7 @@ interface TimeSlot {
 
 interface DbAvailability {
   id: number;
-  property_id: number;
+  property_id: string;
   seller_id: number;
   start_time: string;
   end_time: string;
@@ -17,7 +17,7 @@ interface DbAvailability {
 
 interface SellerAvailabilityCalendarProps {
   sellerId: number;
-  propertyId: number;
+  propertyId: string;
 }
 
 const timeSlots = [
