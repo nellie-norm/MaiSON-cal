@@ -92,8 +92,6 @@ def add_availability():
     finally:
         conn.close()
 
-### Add this new endpoint to your app.py file
-
 @app.route('/availability/batch', methods=['POST'])
 def add_availabilities_batch():
     data = request.json
@@ -146,6 +144,55 @@ def add_availabilities_batch():
         conn.rollback()
         print(f"Error inserting batch availabilities: {e}")
         return jsonify({'error': 'Could not add availabilities', 'details': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/availability/batch', methods=['DELETE'])
+def delete_availabilities_batch():
+    data = request.json
+    availability_ids = data.get('ids')
+    
+    if not availability_ids or not isinstance(availability_ids, list):
+        return jsonify({'error': 'Missing or invalid availability IDs array'}), 400
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            deleted_ids = []
+            not_found_ids = []
+            
+            # Start a transaction
+            for availability_id in availability_ids:
+                cur.execute("""
+                    DELETE FROM availability WHERE id = %s RETURNING id
+                """, (availability_id,))
+                
+                result = cur.fetchone()
+                if result:
+                    deleted_ids.append(str(result['id']))
+                else:
+                    not_found_ids.append(availability_id)
+            
+            # Commit the transaction
+            conn.commit()
+            
+            response = {
+                'message': f'Successfully deleted {len(deleted_ids)} availability records',
+                'deleted_ids': deleted_ids
+            }
+            
+            if not_found_ids:
+                response['not_found_ids'] = not_found_ids
+                
+            return jsonify(response), 200
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error deleting batch availabilities: {e}")
+        return jsonify({'error': 'Could not delete availabilities', 'details': str(e)}), 500
     finally:
         conn.close()
 
