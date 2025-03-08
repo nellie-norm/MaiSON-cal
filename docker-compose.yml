@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14
+    container_name: maison-property-calendar-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: maison_property_calendar
+      POSTGRES_USER: nellnorman
+      POSTGRES_PASSWORD: mysecretpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
