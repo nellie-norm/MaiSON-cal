@@ -33,6 +33,18 @@ def get_db_connection():
 def home():
     return jsonify({"message": "Welcome to the Maison Property Calendar API!"})
 
+@app.route('/test-db')
+def test_db():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT NOW();")  # Simple query to check the DB connection
+        result = cur.fetchone()
+        conn.close()
+        return jsonify({"success": True, "message": "Database connected!", "timestamp": result["now"]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    
 ### ✅ POST: Add availability
 @app.route('/availability', methods=['POST'])
 def add_availability():
