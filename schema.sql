@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS availability (
-    id SERIAL PRIMARY KEY,
-    property_id INTEGER NOT NULL,
-    seller_id INTEGER NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    property_id UUID NOT NULL,
+    seller_id UUID NOT NULL,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

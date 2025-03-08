@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv  # ✅ Add this to load environment variables
 import os
 
+# ✅ Load environment variables from .env file
+load_dotenv()
 app = Flask(__name__)
 
 # Database connection details (from Docker environment variables)
@@ -11,39 +14,48 @@ DB_NAME = os.getenv('DB_NAME', 'maison_property_calendar')
 DB_USER = os.getenv('DB_USER', 'nellnorman')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'mysecretpassword')
 DB_PORT = os.getenv('DB_PORT', '5432')
+DB_SSLMODE = os.getenv('DB_SSLMODE', 'require')
 
 
-# Function to connect to PostgreSQL
+# ✅ Define get_db_connection() before any routes use it
 def get_db_connection():
     try:
+        print(f"Connecting with: Host={DB_HOST}, DB={DB_NAME}, User={DB_USER}, SSL={DB_SSLMODE}")
         conn = psycopg2.connect(
             host=DB_HOST,
             database=DB_NAME,
             user=DB_USER,
             password=DB_PASSWORD,
             port=DB_PORT,
-            cursor_factory=RealDictCursor
+            cursor_factory=RealDictCursor,
+            sslmode=DB_SSLMODE
         )
         return conn
     except Exception as e:
         print(f"Database connection failed: {e}")
         return None
 
-@app.route("/")
-def home():
-    return jsonify({"message": "Welcome to the Maison Property Calendar API!"})
-
 @app.route('/test-db')
 def test_db():
     try:
         conn = get_db_connection()
+        if not conn:
+            return jsonify({"success": False, "error": "Database connection failed. Check DB credentials and firewall settings."}), 500
+        
         cur = conn.cursor()
-        cur.execute("SELECT NOW();")  # Simple query to check the DB connection
+        cur.execute("SELECT NOW();")  # Simple query to check DB connectivity
         result = cur.fetchone()
         conn.close()
+
         return jsonify({"success": True, "message": "Database connected!", "timestamp": result["now"]})
+    
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        error_message = str(e)
+        print(f"Detailed error: {error_message}")
+        return jsonify({"success": False, "error": error_message}), 500
+@app.route("/")
+def home():
+    return jsonify({"message": "Welcome to the Maison Property Calendar API!"})
     
 ### ✅ POST: Add availability
 @app.route('/availability', methods=['POST'])
@@ -80,7 +92,6 @@ def add_availability():
     finally:
         conn.close()
 
-
 ### ✅ GET: Fetch availability by property_id
 @app.route('/availability', methods=['GET'])
 def get_availability():
@@ -109,7 +120,6 @@ def get_availability():
     finally:
         conn.close()
 
-
 ### ✅ DELETE: Remove availability by ID
 @app.route('/availability/<uuid:availability_id>', methods=['DELETE'])
 def delete_availability(availability_id):
@@ -136,7 +146,6 @@ def delete_availability(availability_id):
         return jsonify({'error': 'Could not delete availability'}), 500
     finally:
         conn.close()
-
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)
