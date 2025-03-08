@@ -92,6 +92,63 @@ def add_availability():
     finally:
         conn.close()
 
+### Add this new endpoint to your app.py file
+
+@app.route('/availability/batch', methods=['POST'])
+def add_availabilities_batch():
+    data = request.json
+    availabilities = data.get('availabilities')
+    
+    if not availabilities or not isinstance(availabilities, list):
+        return jsonify({'error': 'Missing or invalid availabilities array'}), 400
+    
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            added_ids = []
+            
+            # Start a transaction
+            for availability in availabilities:
+                property_id = availability.get('property_id')
+                seller_id = availability.get('seller_id')
+                start_time = availability.get('start_time')
+                end_time = availability.get('end_time')
+                
+                if not all([property_id, seller_id, start_time, end_time]):
+                    # Roll back the entire transaction if any record is invalid
+                    conn.rollback()
+                    return jsonify({
+                        'error': 'Invalid data in availabilities array',
+                        'details': f'Missing required fields in item: {availability}'
+                    }), 400
+                
+                cur.execute("""
+                    INSERT INTO availability (property_id, seller_id, start_time, end_time)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                """, (property_id, seller_id, start_time, end_time))
+                
+                new_id = cur.fetchone()['id']
+                added_ids.append(str(new_id))
+            
+            # Commit the transaction if all inserts were successful
+            conn.commit()
+            
+            return jsonify({
+                'message': f'Successfully added {len(added_ids)} availability records',
+                'ids': added_ids
+            }), 201
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Error inserting batch availabilities: {e}")
+        return jsonify({'error': 'Could not add availabilities', 'details': str(e)}), 500
+    finally:
+        conn.close()
+
 ### ✅ GET: Fetch availability by property_id
 @app.route('/availability', methods=['GET'])
 def get_availability():
